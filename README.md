@@ -8,6 +8,12 @@ A production-grade Model Context Protocol (MCP) server for PostgreSQL Site Relia
 3. **REST API**: FastAPI application containing hardcoded SQL, caching, and connection pooling.
 4. **PostgreSQL**: The target database, accessed via restricted roles.
 
+## Features
+The server provides the following to the LLM context:
+- **25 Tools**: Focused capabilities including `slow_queries`, `active_sessions`, `vacuum_table`, and `explain_query`.
+- **Resources**: Exposes static context directly to the LLM, including the operational runbook (`resource://docs/runbook`) and recent action logs (`resource://logs/audit`).
+- **Prompts**: Built-in incident workflows like `triage_incident`, `analyze_performance`, and `check_vacuum_status` that let users trigger complex multi-tool investigations with a single click.
+
 ## Quick Start
 1. Clone the repository.
 2. Run `docker-compose up -d --build`. This starts PostgreSQL, the API, and the MCP Server.
