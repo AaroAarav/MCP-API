@@ -1,0 +1,6 @@
+mcp[fastmcp]>=1.0.0
+httpx>=0.25.0
+pydantic>=2.0.0
+trio>=0.23.0
+starlette>=0.30.0
+uvicorn>=0.23.0
