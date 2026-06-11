@@ -32,9 +32,24 @@ The MCP server provides 25 specialized tools to diagnose and manage your Postgre
 24. **`replication_lag`**: Measures how far behind a replica is from the primary.
 25. **`schema_context`**: Loads a compact schema summary for the session.
 
+## Available Resources
+
+In addition to tools, the server exposes static contextual data via MCP Resources:
+
+1. **`resource://logs/audit`**: Reads the last 50 actions performed by SREs through the mutable API endpoints. Useful for determining what changes were recently applied to the database.
+2. **`resource://docs/runbook`**: Exposes the internal operational runbook, providing the LLM with company-specific SOPs for handling outages or degraded service states.
+
 ## Effective Prompts
 
-Here are 5 highly effective natural language prompts you can copy/paste to diagnose database issues quickly:
+To streamline common workflows, the server provides built-in MCP Prompts that you can trigger directly from your client UI:
+
+- **`triage_incident`**: Sets the LLM up to respond to a sudden spike in database timeouts using active sessions and lock tools.
+- **`analyze_performance`**: Initiates a proactive database health check using slow queries and bloat analysis.
+- **`check_index_health`**: Deep dive into missing, unused, duplicate, and bloated indexes.
+- **`explain_slowest_query`**: Finds the worst performing query and immediately explains its execution plan.
+- **`check_vacuum_status`**: Investigates if autovacuum is keeping up with dead tuples.
+
+Alternatively, you can always write custom prompts:
 
 1. > "The application team is reporting sudden database timeouts. Check `active_sessions` and the `blocking_lock_tree` to see if there is a head blocker, then let me know if we need to `cancel_query`."
 2. > "Analyze the `cache_hit_rates` and run `missing_indexes`. Are there any specific tables causing high I/O due to sequential scans?"

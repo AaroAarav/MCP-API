@@ -179,6 +179,71 @@ async def schema_context() -> str:
     """Load a compact schema summary for the session."""
     return await _api_get("/schema/context")
 
+@mcp.prompt()
+def triage_incident() -> str:
+    """Standard runbook for triaging a sudden database performance degradation."""
+    return (
+        "You are an expert PostgreSQL Site Reliability Engineer. The application team "
+        "is reporting a sudden spike in database timeouts. Please use the `active_sessions`, "
+        "`blocking_lock_tree`, and `connection_utilization` tools to identify the bottleneck. "
+        "If you find a head blocker causing issues, formulate a recommendation and ask me "
+        "if you should use the `cancel_query` or `terminate_session` tool."
+    )
+
+@mcp.prompt()
+def analyze_performance() -> str:
+    """Routine health check for database performance."""
+    return (
+        "Please act as a proactive PostgreSQL DBA. Use the `slow_queries`, `missing_indexes`, "
+        "and `table_bloat` tools to provide a holistic health check of the database. "
+        "Write a concise summary report of your findings, highlighting any tables that urgently "
+        "need a `vacuum_table` or queries that are scanning too many rows without an index."
+    )
+
+@mcp.prompt()
+def check_index_health() -> str:
+    """Deep dive into index bloat, missing, and duplicate indexes."""
+    return (
+        "Run a comprehensive index health check using the `missing_indexes`, `unused_indexes`, "
+        "`duplicate_indexes`, and `bloated_indexes` tools. Identify the top 3 quick wins for "
+        "improving write performance (by dropping unused/duplicate indexes) or read performance "
+        "(by adding missing indexes)."
+    )
+
+@mcp.prompt()
+def explain_slowest_query() -> str:
+    """Find the single slowest query and run EXPLAIN on it."""
+    return (
+        "Use the `slow_queries` tool to find the absolute slowest query in the system by total time. "
+        "Extract its SQL and immediately run the `explain_query` tool on it. "
+        "Analyze the resulting execution plan and suggest exactly which index should be created to fix it."
+    )
+
+@mcp.prompt()
+def check_vacuum_status() -> str:
+    """Investigate autovacuum health and dead tuples."""
+    return (
+        "Use `table_bloat`, `vacuum_status`, and `statistics_staleness` to see if autovacuum is keeping up "
+        "with the workload. If you see highly bloated tables, use `vacuum_progress` to see if a vacuum "
+        "is currently running, or recommend running `vacuum_table`."
+    )
+
+@mcp.resource("resource://logs/audit")
+async def audit_log() -> str:
+    """Read the recent SRE operations audit log."""
+    return await _api_get("/audit-log", {"limit": 50})
+
+@mcp.resource("resource://docs/runbook")
+def ops_runbook() -> str:
+    """Read the operational runbook for troubleshooting the API and Database."""
+    # Assuming the server is run from the project root or mcp_app directory
+    paths = ["docs/ops-runbook.md", "../docs/ops-runbook.md"]
+    for path in paths:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+    return "Error: Could not locate docs/ops-runbook.md"
+
 if __name__ == "__main__":
     import sys
     if "--sse" in sys.argv:

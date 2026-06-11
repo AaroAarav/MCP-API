@@ -69,6 +69,30 @@ async def largest_tables(limit: int = 10) -> str:
 > [!TIP]
 > The docstring in the `@mcp.tool()` function (`"""Which tables are taking up..."""`) is critical. This string is passed directly to the LLM to help it understand when and why to use the tool. Make it clear and action-oriented.
 
+## How to Add Resources and Prompts
+
+Besides tools, you can also add **Resources** and **Prompts** directly to `mcp_app/server.py`.
+
+### Adding a Resource
+Resources are for static or semi-static context that you want the LLM to read (e.g., logs, config files).
+
+```python
+@mcp.resource("resource://config/postgres")
+def read_pg_config() -> str:
+    """Read the current postgresql.conf settings."""
+    return "max_connections=200\nshared_buffers=1GB"
+```
+
+### Adding a Prompt
+Prompts act as pre-packaged workflows for the user in the client UI.
+
+```python
+@mcp.prompt()
+def check_storage() -> str:
+    """Analyze storage growth."""
+    return "Please use the `largest_tables` tool to determine what is eating up disk space."
+```
+
 ## Writing Tests
 
 Always back your new tool with tests in `tests/`. We enforce >90% code coverage. Mock the database interactions for unit testing the API, and mock the HTTP responses for unit testing the MCP wrapper.
