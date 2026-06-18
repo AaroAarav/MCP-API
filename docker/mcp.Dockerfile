@@ -5,6 +5,7 @@ COPY mcp_app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY mcp_app /app/mcp_app
+COPY docs /app/docs
 
 ENV PYTHONPATH=/app
 EXPOSE 8000

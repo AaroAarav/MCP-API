@@ -54,7 +54,7 @@ async def _api_post(endpoint: str, json_body: dict = None) -> str:
         return result
 
 
-@mcp.tool()
+@mcp.tool(description="Returns the top N slowest queries right now.")
 async def slow_queries(limit: int = 10, order_by: str = "total_time") -> str:
     """Returns the top N slowest queries right now."""
     return await _api_get("/queries/slow", {"limit": limit, "order_by": order_by})
@@ -94,15 +94,7 @@ async def connection_utilization() -> str:
     """How close is the connection pool to max_connections?"""
     return await _api_get("/sessions/connections")
 
-@mcp.tool()
-async def cancel_query(pid: int, reason: str) -> str:
-    """Cancel a query without dropping the connection."""
-    return await _api_post(f"/sessions/{pid}/cancel", {"reason": reason})
 
-@mcp.tool()
-async def terminate_session(pid: int, reason: str, confirm: bool = True) -> str:
-    """Disconnect a session entirely."""
-    return await _api_post(f"/sessions/{pid}/terminate", {"reason": reason, "confirm": confirm})
 
 @mcp.tool()
 async def cache_hit_rates() -> str:
@@ -154,20 +146,7 @@ async def vacuum_progress() -> str:
     """How far along is the current VACUUM?"""
     return await _api_get("/tables/vacuum-progress")
 
-@mcp.tool()
-async def vacuum_table(name: str, confirm: bool = True) -> str:
-    """Run VACUUM ANALYZE on a named table."""
-    return await _api_post(f"/tables/{name}/vacuum", {"confirm": confirm})
 
-@mcp.tool()
-async def analyze_table(name: str, confirm: bool = True) -> str:
-    """Refresh planner statistics for a named table."""
-    return await _api_post(f"/tables/{name}/analyze", {"confirm": confirm})
-
-@mcp.tool()
-async def reindex_index(name: str, confirm: bool = True) -> str:
-    """Rebuild a bloated index without locking the table."""
-    return await _api_post(f"/indexes/{name}/reindex", {"confirm": confirm})
 
 @mcp.tool()
 async def replication_lag() -> str:
@@ -186,8 +165,7 @@ def triage_incident() -> str:
         "You are an expert PostgreSQL Site Reliability Engineer. The application team "
         "is reporting a sudden spike in database timeouts. Please use the `active_sessions`, "
         "`blocking_lock_tree`, and `connection_utilization` tools to identify the bottleneck. "
-        "If you find a head blocker causing issues, formulate a recommendation and ask me "
-        "if you should use the `cancel_query` or `terminate_session` tool."
+        "If you find a head blocker causing issues, formulate a recommendation for the user."
     )
 
 @mcp.prompt()
@@ -197,7 +175,7 @@ def analyze_performance() -> str:
         "Please act as a proactive PostgreSQL DBA. Use the `slow_queries`, `missing_indexes`, "
         "and `table_bloat` tools to provide a holistic health check of the database. "
         "Write a concise summary report of your findings, highlighting any tables that urgently "
-        "need a `vacuum_table` or queries that are scanning too many rows without an index."
+        "need a vacuum or queries that are scanning too many rows without an index."
     )
 
 @mcp.prompt()
@@ -206,11 +184,11 @@ def check_index_health() -> str:
     return (
         "Run a comprehensive index health check using the `missing_indexes`, `unused_indexes`, "
         "`duplicate_indexes`, and `bloated_indexes` tools. Identify the top 3 quick wins for "
-        "improving write performance (by dropping unused/duplicate indexes) or read performance "
-        "(by adding missing indexes)."
+        "improving performance, and draft a report for the application team to drop unused/duplicate indexes "
+        "or add missing indexes."
     )
 
-@mcp.prompt()
+@mcp.prompt(description="Find the single slowest query and run EXPLAIN on it.")
 def explain_slowest_query() -> str:
     """Find the single slowest query and run EXPLAIN on it."""
     return (
@@ -225,7 +203,54 @@ def check_vacuum_status() -> str:
     return (
         "Use `table_bloat`, `vacuum_status`, and `statistics_staleness` to see if autovacuum is keeping up "
         "with the workload. If you see highly bloated tables, use `vacuum_progress` to see if a vacuum "
-        "is currently running, or recommend running `vacuum_table`."
+        "is currently running, or recommend running a vacuum manually."
+    )
+
+@mcp.prompt()
+def investigate_recent_changes() -> str:
+    """Investigate recent database changes and audit log operations."""
+    return (
+        "Act as an SRE analyzing recent database operations. "
+        "Read the `audit_log` resource to see recent actions performed by the team. "
+        "Also review the `schema_context` to understand the current database schema structure. "
+        "Summarize any recent DDL or mutative operations, and cross-reference them with "
+        "`active_sessions` or `slow_queries` if performance issues are currently reported."
+    )
+
+@mcp.prompt()
+def check_replication_health() -> str:
+    """Investigate replication lag and database availability."""
+    return (
+        "Act as a database reliability engineer checking the high-availability setup. "
+        "Use the `replication_lag` tool to verify the health of replicas. "
+        "If there is significant lag, cross-reference with `long_running_queries` and "
+        "`active_sessions` to identify if a primary workload is causing the delay."
+    )
+
+@mcp.prompt()
+def check_memory_usage() -> str:
+    """Investigate memory usage and query temp spills."""
+    return (
+        "Use the `temp_spill_queries` and `cache_hit_rates` tools to investigate "
+        "if the database is struggling with memory constraints. "
+        "If queries are spilling to disk, recommend investigating those specific queries "
+        "using `explain_query` or suggest if `work_mem` might need tuning."
+    )
+
+@mcp.prompt()
+def comprehensive_slow_query_analysis() -> str:
+    """End-to-end workflow for analyzing slow queries."""
+    return (
+        "Perform a comprehensive slow query analysis by following these steps exactly in order:\n"
+        "1. Identify top slow queries: Use `slow_queries`.\n"
+        "2. Obtain execution plan: Use `explain_query` on the most problematic queries.\n"
+        "3. Check rows scanned: Analyze the explain output for sequence scans or high row counts.\n"
+        "4. Verify index usage: Check if indexes are used in the plan. Cross-reference with `missing_indexes` or `unused_indexes`.\n"
+        "5. Check locking/blocking: Use `blocking_lock_tree` to see if the slow query is waiting on locks.\n"
+        "6. Check CPU/Memory/IO constraints: Use `temp_spill_queries` and `cache_hit_rates`.\n"
+        "7. Validate optimizer statistics: Use `statistics_staleness` to see if the planner is working with outdated data.\n"
+        "8. Review recent changes: Read the `audit_log` resource and `schema_context` to see if a recent deployment or DDL caused this.\n"
+        "Report your findings for each step and provide a final recommendation."
     )
 
 @mcp.resource("resource://logs/audit")

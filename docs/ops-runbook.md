@@ -54,7 +54,7 @@ The `pg_stat_statements` extension is required by tools like `slow_queries` and 
    ```bash
    docker-compose restart api
    ```
-3. Verify that the application user applying DDL changes to the database actually triggers the event trigger. If the `sre_ops` setup script was not run fully, the `EVENT TRIGGER` required to broadcast `NOTIFY` messages might be missing.
+5. Verify that the application user applying DDL changes to the database actually triggers the event trigger.
 
 > [!WARNING]
 > Repeatedly restarting the API will invalidate all application caches. Do so carefully in a production environment.

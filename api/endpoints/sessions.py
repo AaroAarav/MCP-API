@@ -4,11 +4,10 @@ from typing import Optional
 import time
 from datetime import datetime
 
-from api.services.db import get_read_conn, get_ops_conn
+from api.services.db import get_read_conn
 from api.cache.manager import cache_manager
 from api.schemas.responses import APIResponse, APIErrorResponse
-from api.audit.logger import audit_logger
-from api.sql.sessions import BLOCKING_LOCKS, IDLE_IN_TRANSACTION, CONNECTIONS, CANCEL_QUERY, TERMINATE_SESSION, VALIDATE_PID
+from api.sql.sessions import BLOCKING_LOCKS, IDLE_IN_TRANSACTION, CONNECTIONS
 
 # Try to import our execute_query_cached helper. To avoid circular imports, we could duplicate or move it.
 # We will just duplicate the basic logic for now.
@@ -48,61 +47,3 @@ async def get_connections():
     # max_connections is usually accessible, but might require different pg view
     # For now we just return the counts
     return await execute_query_cached("10s", "/sessions/connections", {}, CONNECTIONS)
-
-class CancelRequest(BaseModel):
-    reason: str
-    backend_start: Optional[datetime] = None
-
-class TerminateRequest(BaseModel):
-    reason: str
-    confirm: bool
-
-@router.post("/{pid}/cancel")
-async def cancel_query(pid: int, req: CancelRequest, request: Request):
-    start_time = time.time()
-    actor = "mcp_client" # Hardcoded for now. In real setup, get from Auth middleware
-    log_id = audit_logger.log_intent(actor, f"/sessions/{pid}/cancel", str(pid))
-    try:
-        async with get_ops_conn() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(VALIDATE_PID, {"pid": pid})
-                res = await cur.fetchone()
-                if not res:
-                    raise Exception("PID not found")
-                
-                # Check PID recycling if backend_start was provided
-                if req.backend_start and res[0] != req.backend_start:
-                    raise Exception("PID recycling detected, backend_start mismatch")
-
-                await cur.execute(CANCEL_QUERY, {"pid": pid})
-                success = (await cur.fetchone())[0]
-
-        duration = int((time.time() - start_time) * 1000)
-        audit_logger.log_result(log_id, True, duration, str(success))
-        return APIResponse(ok=True, data=[{"cancelled": success}], row_count=1)
-    except Exception as e:
-        duration = int((time.time() - start_time) * 1000)
-        audit_logger.log_result(log_id, False, duration, str(e))
-        return APIErrorResponse(ok=False, error=str(e))
-
-@router.post("/{pid}/terminate")
-async def terminate_session(pid: int, req: TerminateRequest):
-    if not req.confirm:
-        return APIErrorResponse(ok=False, error="Must set confirm to true")
-
-    start_time = time.time()
-    actor = "mcp_client"
-    log_id = audit_logger.log_intent(actor, f"/sessions/{pid}/terminate", str(pid))
-    try:
-        async with get_ops_conn() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(TERMINATE_SESSION, {"pid": pid})
-                success = (await cur.fetchone())[0]
-
-        duration = int((time.time() - start_time) * 1000)
-        audit_logger.log_result(log_id, True, duration, str(success))
-        return APIResponse(ok=True, data=[{"terminated": success}], row_count=1)
-    except Exception as e:
-        duration = int((time.time() - start_time) * 1000)
-        audit_logger.log_result(log_id, False, duration, str(e))
-        return APIErrorResponse(ok=False, error=str(e))
